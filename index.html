@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SHUX — 動画のSNS投稿をAIが全部書く</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f9f9f7;
+      --surface: #ffffff;
+      --border: #e8e6df;
+      --border-mid: #d0cec6;
+      --text: #1a1a18;
+      --muted: #6b6b67;
+      --hint: #a0a09a;
+      --accent: #1a1a18;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    header { padding: 24px 32px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--surface); }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { width: 36px; height: 36px; background: var(--accent); border-radius: 9px; display: flex; align-items: center; justify-content: center; }
+    .logo-icon svg { width: 18px; height: 18px; }
+    .logo-name { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
+    .logo-tag { font-size: 12px; color: var(--hint); }
+    .badge { background: var(--bg); border: 0.5px solid var(--border); border-radius: 20px; padding: 5px 12px; font-size: 12px; color: var(--muted); }
+
+    main { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
+
+    .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
+    label { display: block; font-size: 11px; font-weight: 600; color: var(--hint); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+    textarea { width: 100%; border: none; outline: none; resize: none; font-size: 15px; line-height: 1.7; color: var(--text); background: transparent; font-family: inherit; }
+    textarea::placeholder { color: var(--hint); }
+    .char-row { text-align: right; font-size: 11px; color: var(--hint); margin-top: 6px; }
+
+    .options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .option-group label { margin-bottom: 6px; }
+    select { width: 100%; padding: 10px 12px; border: 0.5px solid var(--border-mid); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font-family: inherit; font-size: 14px; outline: none; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23a0a09a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+
+    .gen-btn { width: 100%; padding: 14px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px; transition: opacity 0.15s; }
+    .gen-btn:hover:not(:disabled) { opacity: 0.85; }
+    .gen-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .results { margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
+    .result-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .result-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 0.5px solid var(--border); background: var(--bg); }
+    .platform-name { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text); }
+    .platform-name svg { width: 18px; height: 18px; }
+    .copy-btn { padding: 5px 12px; background: transparent; border: 0.5px solid var(--border-mid); border-radius: 6px; font-size: 12px; color: var(--muted); cursor: pointer; font-family: inherit; transition: all 0.15s; }
+    .copy-btn:hover { background: var(--bg); color: var(--text); }
+    .result-body { padding: 16px 20px; font-size: 14px; line-height: 1.75; color: var(--text); white-space: pre-wrap; }
+
+    .error { background: #fff5f5; border: 0.5px solid #fecaca; border-radius: var(--radius-sm); padding: 14px 16px; font-size: 14px; color: #b91c1c; margin-top: 16px; }
+    .dots span { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #fff; margin: 0 2px; animation: bounce 1.2s infinite; }
+    .dots span:nth-child(2) { animation-delay: 0.2s; }
+    .dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,80%,100%{opacity:0.25;transform:scale(0.75)} 40%{opacity:1;transform:scale(1)} }
+
+    @media (max-width: 480px) {
+      header { padding: 16px 20px; }
+      main { padding: 24px 16px; }
+      .card { padding: 16px; }
+      .options { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 9l4 4 8-8" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-name">SHUX</div>
+      <div class="logo-tag">動画のSNS投稿をAIが全部書く</div>
+    </div>
+  </div>
+  <div class="badge">by SHU</div>
+</header>
+
+<main>
+  <div class="card">
+    <label>動画の内容</label>
+    <textarea id="desc" rows="5" placeholder="例：沖縄の美浜アメリカンビレッジを散歩した。夕日がきれいで、タコスも食べた。地元の人におすすめスポットも教えてもらった。"></textarea>
+    <div class="char-row"><span id="cc">0</span>字</div>
+  </div>
+
+  <div class="options">
+    <div class="option-group">
+      <label>言語</label>
+      <select id="lang">
+        <option value="japanese">日本語</option>
+        <option value="english">英語</option>
+        <option value="both">日英両方</option>
+      </select>
+    </div>
+    <div class="option-group">
+      <label>動画スタイル</label>
+      <select id="style">
+        <option value="vlog">Vlog・日常</option>
+        <option value="short">ショート・縦動画</option>
+        <option value="travel">旅行・観光</option>
+        <option value="food">グルメ・食レポ</option>
+        <option value="lifestyle">ライフスタイル</option>
+      </select>
+    </div>
+  </div>
+
+  <button class="gen-btn" id="genBtn" onclick="generate()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+    AIで全部生成する
+  </button>
+
+  <div class="results" id="results"></div>
+</main>
+
+<script>
+const PLATFORMS = [
+  { key: 'youtube',   name: 'YouTube' },
+  { key: 'shorts',    name: 'YouTube Shorts' },
+  { key: 'instagram', name: 'Instagram Reels' },
+  { key: 'tiktok',    name: 'TikTok' },
+  { key: 'twitter',   name: 'X (Twitter)' },
+];
+
+document.getElementById('desc').addEventListener('input', function() {
+  document.getElementById('cc').textContent = this.value.length;
+});
+
+async function generate() {
+  const desc = document.getElementById('desc').value.trim();
+  if (!desc) { alert('動画の内容を入力してください'); return; }
+
+  const lang = document.getElementById('lang').value;
+  const style = document.getElementById('style').value;
+  const btn = document.getElementById('genBtn');
+  const results = document.getElementById('results');
+
+  btn.disabled = true;
+  btn.innerHTML = '<div class="dots"><span></span><span></span><span></span></div>';
+  results.innerHTML = '';
+
+  const styleMap = { vlog:'Vlog・日常系', short:'ショート・縦動画', travel:'旅行・観光', food:'グルメ・食レポ', lifestyle:'ライフスタイル' };
+  const langMap = { japanese:'日本語で', english:'英語で', both:'日本語と英語の両方で' };
+
+  const prompt = `あなたはSNSマーケティングの専門家です。以下の動画内容をもとに、各プラットフォーム向けのコンテンツを${langMap[lang]}生成してください。
+
+動画内容: ${desc}
+動画スタイル: ${styleMap[style]}
+
+必ずJSON形式のみで返答してください。コードブロックや説明文は不要です。
+{
+  "youtube": "YouTubeタイトル3案（番号付き）\\n\\n概要欄（200字程度）\\n\\nタグ: #タグ1 #タグ2...",
+  "shorts": "タイトル（20字以内）\\n\\nキャプション（50字以内）\\n\\n#ハッシュタグ×5",
+  "instagram": "キャプション（絵文字使用、150字）\\n\\n#ハッシュタグ×15",
+  "tiktok": "キャプション（100字）\\n\\n#ハッシュタグ×10",
+  "twitter": "投稿文（140字以内）"
+}`;
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+
+    if (!res.ok) throw new Error('サーバーエラー: ' + res.status);
+    const data = await res.json();
+    const parsed = data.result;
+
+    PLATFORMS.forEach(p => {
+      const content = (parsed[p.key] || '生成できませんでした').replace(/\\n/g, '\n');
+      const card = document.createElement('div');
+      card.className = 'result-card';
+      card.innerHTML = `
+        <div class="result-head">
+          <div class="platform-name">${p.name}</div>
+          <button class="copy-btn" onclick="copyText(this, \`${content.replace(/`/g,'\\`')}\`)">コピー</button>
+        </div>
+        <div class="result-body">${content}</div>
+      `;
+      results.appendChild(card);
+    });
+  } catch(e) {
+    results.innerHTML = `<div class="error">エラー: ${e.message}</div>`;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> もう一度生成する';
+}
+
+function copyText(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✓ コピー完了';
+    setTimeout(() => btn.textContent = 'コピー', 1800);
+  });
+}
+</script>
+</body>
+</html>
